@@ -20,6 +20,7 @@ package org.apache.beam.sdk.io.gcp.bigtable;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
+import com.google.auth.Credentials;
 import com.google.cloud.bigtable.config.BigtableOptions;
 import com.google.cloud.bigtable.config.BulkOptions;
 import com.google.cloud.bigtable.config.CallOptionsConfig;
@@ -27,7 +28,6 @@ import com.google.cloud.bigtable.config.CredentialOptions;
 import com.google.cloud.bigtable.config.RetryOptions;
 import com.google.cloud.bigtable.data.v2.BigtableDataSettings;
 import com.google.cloud.bigtable.data.v2.stub.EnhancedBigtableStubSettings;
-import org.apache.beam.sdk.extensions.gcp.auth.NoopCredentialFactory;
 import org.apache.beam.sdk.extensions.gcp.auth.TestCredential;
 import org.apache.beam.sdk.extensions.gcp.options.GcpOptions;
 import org.apache.beam.sdk.options.PipelineOptions;
@@ -36,6 +36,7 @@ import org.apache.beam.sdk.options.ValueProvider;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
+import org.mockito.Mockito;
 import org.threeten.bp.Duration;
 
 /** Unit tests for {@link BigtableConfigTranslator}. */
@@ -43,7 +44,7 @@ import org.threeten.bp.Duration;
 public class BigtableConfigTranslatorTest {
 
   @Test
-  public void testBigtableOptionsToBigtableConfig() throws Exception {
+  public void testBigtableOptionsToBigtableConfig() {
     BigtableOptions options =
         BigtableOptions.builder()
             .setProjectId("project")
@@ -61,16 +62,11 @@ public class BigtableConfigTranslatorTest {
     assertNotNull(config.getInstanceId());
     assertNotNull(config.getAppProfileId());
     assertNotNull(config.getEmulatorHost());
-    assertNotNull(config.getCredentialFactory());
 
-    NoopCredentialFactory noopCredentialFactory =
-        NoopCredentialFactory.fromOptions(PipelineOptionsFactory.as(GcpOptions.class));
     assertEquals(options.getProjectId(), config.getProjectId().get());
     assertEquals(options.getInstanceId(), config.getInstanceId().get());
     assertEquals(options.getAppProfileId(), config.getAppProfileId().get());
     assertEquals("localhost:1234", config.getEmulatorHost());
-    assertEquals(
-        noopCredentialFactory.getCredential(), config.getCredentialFactory().getCredential());
   }
 
   @Test
@@ -244,15 +240,16 @@ public class BigtableConfigTranslatorTest {
   }
 
   @Test
-  public void testUsingNullCredentialsFromBigtableOptions() throws Exception {
+  public void testUsingCredentialsFromBigtableOptions() throws Exception {
+    Credentials fakeCredential = Mockito.mock(Credentials.class);
     BigtableOptions options =
         BigtableOptions.builder()
             .setProjectId("project")
             .setInstanceId("instance")
             .setAppProfileId("app-profile")
-            .setDataHost("localhost")
-            .setPort(1234)
-            .setCredentialOptions(CredentialOptions.nullCredential())
+            .setCredentialOptions(
+                CredentialOptions.P12CredentialOptions.UserSuppliedCredentialOptions.credential(
+                    fakeCredential))
             .build();
 
     GcpOptions pipelineOptions = PipelineOptionsFactory.as(GcpOptions.class);
@@ -260,17 +257,15 @@ public class BigtableConfigTranslatorTest {
 
     BigtableConfig config = BigtableConfig.builder().setValidate(true).build();
     config = BigtableConfigTranslator.translateToBigtableConfig(config, options);
+    BigtableConfigTranslator.translateCredentials(options, pipelineOptions);
 
     BigtableDataSettings veneerSettings =
         BigtableConfigTranslator.translateToVeneerSettings(config, pipelineOptions);
 
     assertNotNull(veneerSettings.getStubSettings().getCredentialsProvider());
 
-    NoopCredentialFactory factory =
-        NoopCredentialFactory.fromOptions(PipelineOptionsFactory.create());
     assertEquals(
-        factory.getCredential(),
-        veneerSettings.getStubSettings().getCredentialsProvider().getCredentials());
+        fakeCredential, veneerSettings.getStubSettings().getCredentialsProvider().getCredentials());
   }
 
   @Test
@@ -287,6 +282,7 @@ public class BigtableConfigTranslatorTest {
             .build();
 
     config = BigtableConfigTranslator.translateToBigtableConfig(config, options);
+    BigtableConfigTranslator.translateCredentials(options, pipelineOptions);
 
     BigtableDataSettings veneerSettings =
         BigtableConfigTranslator.translateToVeneerSettings(config, pipelineOptions);

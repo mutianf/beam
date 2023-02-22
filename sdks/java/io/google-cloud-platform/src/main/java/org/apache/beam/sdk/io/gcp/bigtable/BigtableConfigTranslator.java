@@ -37,12 +37,9 @@ import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.util.Objects;
-import org.apache.beam.sdk.extensions.gcp.auth.CredentialFactory;
-import org.apache.beam.sdk.extensions.gcp.auth.GcpCredentialFactory;
 import org.apache.beam.sdk.extensions.gcp.auth.NoopCredentialFactory;
 import org.apache.beam.sdk.extensions.gcp.options.GcpOptions;
 import org.apache.beam.sdk.options.PipelineOptions;
-import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.options.ValueProvider;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Strings;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableMap;
@@ -91,7 +88,7 @@ class BigtableConfigTranslator {
   }
 
   private static BigtableDataSettings.Builder buildBigtableDataSettings(
-      BigtableConfig config, PipelineOptions pipelineOptions) throws IOException {
+      BigtableConfig config, PipelineOptions pipelineOptions) {
     BigtableDataSettings.Builder dataBuilder;
     boolean emulator = false;
     if (!Strings.isNullOrEmpty(config.getEmulatorHost())) {
@@ -127,18 +124,6 @@ class BigtableConfigTranslator {
             .setCredentialsProvider(
                 FixedCredentialsProvider.create(
                     (pipelineOptions.as(GcpOptions.class)).getGcpCredential()));
-      }
-
-      if (config.getCredentialFactory() != null) {
-        CredentialFactory credentialFactory = config.getCredentialFactory();
-        try {
-          dataBuilder
-              .stubSettings()
-              .setCredentialsProvider(
-                  FixedCredentialsProvider.create(credentialFactory.getCredential()));
-        } catch (GeneralSecurityException e) {
-          throw new RuntimeException("Exception getting credentials ", e);
-        }
       }
     }
 
@@ -235,31 +220,8 @@ class BigtableConfigTranslator {
     return settings.build();
   }
 
-  /**
-   * Translate BigtableOptions to BigtableConfig for backward compatibility. If the values are set
-   * on BigtableConfig, ignore the settings in BigtableOptions.
-   */
-  static BigtableConfig translateToBigtableConfig(BigtableConfig config, BigtableOptions options) {
-    BigtableConfig.Builder builder = config.toBuilder();
-
-    if (options.getProjectId() != null && config.getProjectId() == null) {
-      builder.setProjectId(ValueProvider.StaticValueProvider.of(options.getProjectId()));
-    }
-
-    if (options.getInstanceId() != null && config.getInstanceId() == null) {
-      builder.setInstanceId(ValueProvider.StaticValueProvider.of(options.getInstanceId()));
-    }
-
-    if (options.getAppProfileId() != null && config.getAppProfileId() == null) {
-      builder.setAppProfileId(ValueProvider.StaticValueProvider.of(options.getAppProfileId()));
-    }
-
-    if (options.getCredentialOptions().getCredentialType() == CredentialOptions.CredentialType.None
-        && config.getEmulatorHost() == null) {
-      builder.setEmulatorHost(String.format("%s:%s", options.getDataHost(), options.getPort()));
-    }
-
-    GcpOptions pipelineOptions = PipelineOptionsFactory.create().as(GcpOptions.class);
+  /** Translate credentials in BigtableOptions to PipelineOption credentials. */
+  static void translateCredentials(BigtableOptions options, PipelineOptions pipelineOptions) {
     if (options.getCredentialOptions() != null) {
       try {
         CredentialOptions credOptions = options.getCredentialOptions();
@@ -283,12 +245,13 @@ class BigtableConfigTranslator {
               if (privateKey == null) {
                 throw new IllegalStateException("private key cannot be null");
               }
-              pipelineOptions.setGcpCredential(
-                  ServiceAccountJwtAccessCredentials.newBuilder()
-                      .setClientEmail(serviceAccount)
-                      .setPrivateKey(privateKey)
-                      .build());
-              builder.setCredentialFactory(GcpCredentialFactory.fromOptions(pipelineOptions));
+              pipelineOptions
+                  .as(GcpOptions.class)
+                  .setGcpCredential(
+                      ServiceAccountJwtAccessCredentials.newBuilder()
+                          .setClientEmail(serviceAccount)
+                          .setPrivateKey(privateKey)
+                          .build());
             } catch (GeneralSecurityException exception) {
               throw new RuntimeException("exception while retrieving credentials", exception);
             }
@@ -296,24 +259,52 @@ class BigtableConfigTranslator {
           case SuppliedCredentials:
             Credentials credentials =
                 ((CredentialOptions.UserSuppliedCredentialOptions) credOptions).getCredential();
-            pipelineOptions.setGcpCredential(credentials);
-            builder.setCredentialFactory(GcpCredentialFactory.fromOptions(pipelineOptions));
+            pipelineOptions.as(GcpOptions.class).setGcpCredential(credentials);
             break;
           case SuppliedJson:
             CredentialOptions.JsonCredentialsOptions jsonCredentialsOptions =
                 (CredentialOptions.JsonCredentialsOptions) credOptions;
-            pipelineOptions.setGcpCredential(
-                GoogleCredentials.fromStream(jsonCredentialsOptions.getInputStream()));
-            builder.setCredentialFactory(GcpCredentialFactory.fromOptions(pipelineOptions));
+            pipelineOptions
+                .as(GcpOptions.class)
+                .setGcpCredential(
+                    GoogleCredentials.fromStream(jsonCredentialsOptions.getInputStream()));
             break;
           case None:
-            // pipelineOptions is ignored
-            builder.setCredentialFactory(NoopCredentialFactory.fromOptions(pipelineOptions));
+            NoopCredentialFactory noopCredentialFactory =
+                NoopCredentialFactory.fromOptions(pipelineOptions);
+            pipelineOptions
+                .as(GcpOptions.class)
+                .setGcpCredential(noopCredentialFactory.getCredential());
             break;
         }
       } catch (IOException e) {
         throw new RuntimeException("Failed to translate BigtableOptions to BigtableConfig", e);
       }
+    }
+  }
+
+  /**
+   * Translate BigtableOptions to BigtableConfig for backward compatibility. If the values are set
+   * on BigtableConfig, ignore the settings in BigtableOptions.
+   */
+  static BigtableConfig translateToBigtableConfig(BigtableConfig config, BigtableOptions options) {
+    BigtableConfig.Builder builder = config.toBuilder();
+
+    if (options.getProjectId() != null && config.getProjectId() == null) {
+      builder.setProjectId(ValueProvider.StaticValueProvider.of(options.getProjectId()));
+    }
+
+    if (options.getInstanceId() != null && config.getInstanceId() == null) {
+      builder.setInstanceId(ValueProvider.StaticValueProvider.of(options.getInstanceId()));
+    }
+
+    if (options.getAppProfileId() != null && config.getAppProfileId() == null) {
+      builder.setAppProfileId(ValueProvider.StaticValueProvider.of(options.getAppProfileId()));
+    }
+
+    if (options.getCredentialOptions().getCredentialType() == CredentialOptions.CredentialType.None
+        && config.getEmulatorHost() == null) {
+      builder.setEmulatorHost(String.format("%s:%s", options.getDataHost(), options.getPort()));
     }
 
     return builder.build();
