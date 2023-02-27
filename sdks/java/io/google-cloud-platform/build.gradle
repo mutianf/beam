@@ -72,6 +72,7 @@ dependencies {
   // users receive newer google-cloud-bigtable. Beam doesn't directly use this
   // artifact.
   implementation library.java.google_cloud_bigtable
+  implementation library.java.google_cloud_bigtable_proto
   permitUnusedDeclared library.java.google_cloud_bigtable
   implementation library.java.google_cloud_core
   implementation(library.java.google_cloud_core_grpc) {

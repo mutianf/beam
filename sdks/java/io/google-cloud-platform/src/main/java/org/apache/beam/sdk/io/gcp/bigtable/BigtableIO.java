@@ -960,6 +960,14 @@ public class BigtableIO {
           .build();
     }
 
+    public Write withCpuTarget(int cpuTarget) {
+      checkArgument(cpuTarget >= 10 && cpuTarget <= 90, "CPU target must be between 10 and 90");
+      BigtableWriteOptions options = getBigtableWriteOptions();
+      return toBuilder()
+          .setBigtableWriteOptions(options.toBuilder().setCpuTarget(cpuTarget).build())
+          .build();
+    }
+
     @VisibleForTesting
     Write withServiceFactory(BigtableServiceFactory factory) {
       return toBuilder().setServiceFactory(factory).build();

@@ -54,6 +54,8 @@ abstract class BigtableWriteOptions implements Serializable {
   /** Returns the max number of concurrent bytes allowed before enforcing flow control. */
   abstract @Nullable Long getMaxOutstandingBytes();
 
+  abstract @Nullable Integer getCpuTarget();
+
   abstract Builder toBuilder();
 
   static Builder builder() {
@@ -76,6 +78,8 @@ abstract class BigtableWriteOptions implements Serializable {
     abstract Builder setMaxOutstandingElements(long count);
 
     abstract Builder setMaxOutstandingBytes(long bytes);
+
+    abstract Builder setCpuTarget(int cpuTarget);
 
     abstract BigtableWriteOptions build();
   }

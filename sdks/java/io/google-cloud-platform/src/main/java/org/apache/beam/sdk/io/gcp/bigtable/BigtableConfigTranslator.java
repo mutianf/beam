@@ -184,6 +184,10 @@ class BigtableConfigTranslator {
     }
     batchingSettings = batchingSettings.setFlowControlSettings(flowControlSettings.build());
 
+    if (writeOptions.getCpuTarget() != null) {
+      settings.enableBatchMutationCpuBasedThrotting(writeOptions.getCpuTarget());
+    }
+
     settings
         .stubSettings()
         .bulkMutateRowsSettings()
