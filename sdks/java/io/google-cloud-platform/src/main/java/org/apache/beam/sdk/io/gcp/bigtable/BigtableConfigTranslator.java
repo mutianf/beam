@@ -220,6 +220,12 @@ class BigtableConfigTranslator {
         .setRetrySettings(retrySettings.build())
         .setBatchingSettings(batchingSettings.build());
 
+    if (writeOptions.getCpuTarget() != null) {
+      settings.enableBatchMutationCpuBasedThrotting(writeOptions.getCpuTarget());
+    } else {
+      settings.enableBatchMutationCpuBasedThrotting(70);
+    }
+
     return settings.build();
   }
 

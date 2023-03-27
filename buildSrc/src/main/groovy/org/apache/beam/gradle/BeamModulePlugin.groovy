@@ -390,9 +390,10 @@ class BeamModulePlugin implements Plugin<Project> {
 
     // Automatically use the official release version if we are performing a release
     // otherwise append '-SNAPSHOT'
-    project.version = '2.47.0'
-    if (!isRelease(project)) {
-      project.version += '-SNAPSHOT'
+    project.version = '2.46.0'
+
+    if (project.path == ":sdks:java:io:google-cloud-platform") {
+      project.version = "2.47.0-flow-control-preview1-SNAPSHOT"
     }
 
     // Default to dash-separated directories for artifact base name,

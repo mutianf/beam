@@ -92,7 +92,7 @@ public class ChangeStreamDao {
     } else {
       throw new IOException("Something went wrong");
     }
-    query.heartbeatDuration(org.threeten.bp.Duration.ofMillis(heartbeatDuration.getMillis()));
+    query.heartbeatDuration(java.time.Duration.ofMillis(heartbeatDuration.getMillis()));
     if (shouldDebug) {
       LOG.info(
           "RCSP {} ReadChangeStreamRequest: {}",
