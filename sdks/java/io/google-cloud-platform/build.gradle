@@ -18,7 +18,18 @@
 
 import groovy.json.JsonOutput
 
-plugins { id 'org.apache.beam.module' }
+plugins {
+  id 'org.apache.beam.module'
+  id "maven-publish"
+  id "com.google.cloud.artifactregistry.gradle-plugin" version "2.1.5"
+}
+
+repositories {
+  maven {
+    url "artifactregistry://us-central1-maven.pkg.dev/cloud-bigtable-ecosystem/bigtable-flow-control-preview"
+  }
+}
+
 applyJavaNature(
   automaticModuleName: 'org.apache.beam.sdk.io.gcp',
   enableSpotbugs: false,
@@ -29,6 +40,14 @@ applyJavaNature(
 
 description = "Apache Beam :: SDKs :: Java :: IO :: Google Cloud Platform"
 ext.summary = "IO library to read and write Google Cloud Platform systems from Beam."
+
+configurations.all {
+  resolutionStrategy {
+    force group: 'com.google.cloud', name: 'google-cloud-bigtable', version: '2.19.3-flow-control-preview1-SNAPSHOT'
+    force group: 'com.google.api.grpc', name: 'proto-google-cloud-bigtable-v2', version: '2.19.3-flow-control-preview1-SNAPSHOT'
+    force group: 'com.google.api.grpc', name: 'grpc-google-cloud-bigtable-v2', version: '2.19.3-flow-control-preview1-SNAPSHOT'
+  }
+}
 
 dependencies {
   implementation enforcedPlatform(library.java.google_cloud_platform_libraries_bom)
@@ -71,9 +90,13 @@ dependencies {
   // newer version of GAX. Declaring newer google-cloud-bigtable so that Beam
   // users receive newer google-cloud-bigtable. Beam doesn't directly use this
   // artifact.
-  implementation library.java.google_cloud_bigtable
-  implementation library.java.google_cloud_bigtable_proto
-  permitUnusedDeclared library.java.google_cloud_bigtable
+  //  implementation library.java.google_cloud_bigtable
+  //  implementation library.java.google_cloud_bigtable_proto
+  //  permitUnusedDeclared library.java.google_cloud_bigtable
+  implementation group: 'com.google.cloud', name: 'google-cloud-bigtable', version: '2.19.3-flow-control-preview1-SNAPSHOT'
+  permitUnusedDeclared group: 'com.google.cloud', name: 'google-cloud-bigtable', version: '2.19.3-flow-control-preview1-SNAPSHOT'
+  implementation group: 'com.google.api.grpc', name: 'grpc-google-cloud-bigtable-v2', version: '2.19.3-flow-control-preview1-SNAPSHOT'
+  implementation group: 'com.google.api.grpc', name: 'proto-google-cloud-bigtable-v2', version: '2.19.3-flow-control-preview1-SNAPSHOT'
   implementation library.java.google_cloud_core
   implementation(library.java.google_cloud_core_grpc) {
     exclude group: 'io.grpc', module: 'grpc-core' // Use Beam's version
@@ -131,7 +154,6 @@ dependencies {
   implementation library.java.netty_tcnative_boringssl_static
   permitUnusedDeclared library.java.netty_tcnative_boringssl_static // BEAM-11761
   implementation library.java.proto_google_cloud_bigquery_storage_v1
-  implementation library.java.proto_google_cloud_bigtable_v2
   implementation library.java.proto_google_cloud_datastore_v1
   implementation library.java.proto_google_cloud_firestore_v1
   implementation library.java.proto_google_cloud_pubsub_v1

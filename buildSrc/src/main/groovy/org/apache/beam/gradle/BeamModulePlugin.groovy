@@ -390,9 +390,9 @@ class BeamModulePlugin implements Plugin<Project> {
 
     // Automatically use the official release version if we are performing a release
     // otherwise append '-SNAPSHOT'
-    project.version = '2.47.0'
-    if (!isRelease(project)) {
-      project.version += '-SNAPSHOT'
+    project.version = '2.46.0'
+    if (project.path == ":sdks:java:io:google-cloud-platform") {
+      project.version = "2.47.0-flow-control-preview2-SNAPSHOT"
     }
 
     // Default to dash-separated directories for artifact base name,
@@ -597,8 +597,7 @@ class BeamModulePlugin implements Plugin<Project> {
         google_auth_library_oauth2_http             : "com.google.auth:google-auth-library-oauth2-http", // google_cloud_platform_libraries_bom sets version
         google_cloud_bigquery                       : "com.google.cloud:google-cloud-bigquery", // google_cloud_platform_libraries_bom sets version
         google_cloud_bigquery_storage               : "com.google.cloud:google-cloud-bigquerystorage", // google_cloud_platform_libraries_bom sets version
-        google_cloud_bigtable_proto                 : "com.google.api.grpc:proto-google-cloud-bigtable-v2:2.19.3-SNAPSHOT",
-        google_cloud_bigtable                       : "com.google.cloud:google-cloud-bigtable:2.19.3-SNAPSHOT", // google_cloud_platform_libraries_bom sets version
+        google_cloud_bigtable                       : "com.google.cloud:google-cloud-bigtable", // google_cloud_platform_libraries_bom sets version
         google_cloud_bigtable_client_core_config    : "com.google.cloud.bigtable:bigtable-client-core-config:1.28.0",
         google_cloud_bigtable_emulator              : "com.google.cloud:google-cloud-bigtable-emulator:0.137.1",
         google_cloud_core                           : "com.google.cloud:google-cloud-core", // google_cloud_platform_libraries_bom sets version
