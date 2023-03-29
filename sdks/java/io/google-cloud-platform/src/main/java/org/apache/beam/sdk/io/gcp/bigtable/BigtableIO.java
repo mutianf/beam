@@ -1000,6 +1000,13 @@ public class BigtableIO {
           .build();
     }
 
+    /**
+     * Returns a new {@link BigtableIO.Write} with flow control enabled and set the CPU target.
+     * Dataflow workers will adjust the QPS based on the CPU usage of Cloud Bigtable cluster
+     * and maintain the CPU usage around the target value.
+     *
+     * <p>Does not modify this object.
+     */
     public Write withCpuTarget(int target) {
       checkArgument(target >= 10 && target <= 90, "CPU target needs to be between 10 and 90");
       BigtableWriteOptions options = getBigtableWriteOptions();
