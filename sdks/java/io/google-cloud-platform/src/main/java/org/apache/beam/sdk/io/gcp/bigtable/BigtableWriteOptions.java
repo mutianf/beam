@@ -56,6 +56,9 @@ abstract class BigtableWriteOptions implements Serializable {
 
   abstract @Nullable Integer getCpuTarget();
 
+  /** Returns the target latency if latency based throttling is enabled. */
+  abstract @Nullable Integer getThrottlingTargetMs();
+
   abstract Builder toBuilder();
 
   static Builder builder() {
@@ -80,6 +83,8 @@ abstract class BigtableWriteOptions implements Serializable {
     abstract Builder setMaxOutstandingBytes(long bytes);
 
     abstract Builder setCpuTarget(int cpuTarget);
+
+    abstract Builder setThrottlingTargetMs(int targetMs);
 
     abstract BigtableWriteOptions build();
   }
