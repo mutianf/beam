@@ -1016,6 +1016,21 @@ public class BigtableIO {
           .build();
     }
 
+    /**
+     * Returns a new {@link BIgtableOptions.Write} with flow control enabled and a CPU target which
+     * will reduce the likelihood of a dataflow job overloading a Cloud Bigtable cluster.
+     *
+     * <p>Does not modify this object.
+     */
+    @Experimental
+    Write withFlowControlCPUTarget(int targetCPU) {
+      BigtableWriteOptions options = getBigtableWriteOptions();
+      return toBuilder()
+          .setBigtableWriteOptions(
+              options.toBuilder().setCPUBasedFlowControlTarget(targetCPU).build())
+          .build();
+    }
+
     @VisibleForTesting
     Write withServiceFactory(BigtableServiceFactory factory) {
       return toBuilder().setServiceFactory(factory).build();

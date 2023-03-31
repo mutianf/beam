@@ -60,6 +60,8 @@ abstract class BigtableWriteOptions implements Serializable {
   /** Returns true if CPU based flow control is enabled. */
   abstract @Nullable Boolean getCPUBasedFlowControl();
 
+  abstract @Nullable Integer getCPUBasedFlowControlTarget();
+
   abstract Builder toBuilder();
 
   static Builder builder() {
@@ -86,6 +88,8 @@ abstract class BigtableWriteOptions implements Serializable {
     abstract Builder setThrottlingTargetMs(int targetMs);
 
     abstract Builder setCPUBasedFlowControl(boolean enabled);
+
+    abstract Builder setCPUBasedFlowControlTarget(int targetCPU);
 
     abstract BigtableWriteOptions build();
   }
@@ -117,7 +121,10 @@ abstract class BigtableWriteOptions implements Serializable {
                 .withLabel("Write max outstanding bytes"))
         .addIfNotNull(
             DisplayData.item("isCPUBasedFlowControlEnabled", getCPUBasedFlowControl())
-                .withLabel("CPU based flow control enabled"));
+                .withLabel("CPU based flow control enabled"))
+        .addIfNotNull(
+            DisplayData.item("CPU based flow control target", getCPUBasedFlowControlTarget())
+                .withLabel("CPU target for CPU based flow control"));
   }
 
   void validate() {

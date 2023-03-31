@@ -46,6 +46,7 @@ import org.apache.beam.sdk.options.ExperimentalOptions;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.options.ValueProvider;
+import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Strings;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableMap;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -151,6 +152,19 @@ class BigtableConfigTranslator {
       dataBuilder.enableBatchMutationCPUBasedThrottling();
     }
 
+    if (ExperimentalOptions.hasExperiment(
+        pipelineOptions, "enable_bigtable_flow_control_with_target")) {
+      int cpuTarget =
+          Integer.parseInt(
+              ExperimentalOptions.getExperimentValue(
+                  pipelineOptions, "enable_bigtable_flow_control_with_target"));
+
+      Preconditions.checkArgument(
+          cpuTarget >= 10 && cpuTarget <= 90, "CPU target need to be between 10 and 90");
+
+      dataBuilder.enableBatchMutationCPUBasedThrottling(cpuTarget);
+    }
+
     return dataBuilder;
   }
 
@@ -228,6 +242,10 @@ class BigtableConfigTranslator {
 
     if (writeOptions.getCPUBasedFlowControl()) {
       settings.enableBatchMutationCPUBasedThrottling();
+    }
+
+    if (writeOptions.getCPUBasedFlowControlTarget() != null) {
+      settings.enableBatchMutationCPUBasedThrottling(writeOptions.getCPUBasedFlowControlTarget());
     }
 
     settings
