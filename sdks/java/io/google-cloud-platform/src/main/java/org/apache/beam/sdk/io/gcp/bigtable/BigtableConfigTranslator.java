@@ -42,6 +42,7 @@ import java.util.Objects;
 import org.apache.beam.sdk.extensions.gcp.auth.CredentialFactory;
 import org.apache.beam.sdk.extensions.gcp.auth.NoopCredentialFactory;
 import org.apache.beam.sdk.extensions.gcp.options.GcpOptions;
+import org.apache.beam.sdk.options.ExperimentalOptions;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.options.ValueProvider;
@@ -146,6 +147,10 @@ class BigtableConfigTranslator {
     configureChannelPool(dataBuilder.stubSettings(), config);
     configureHeaderProvider(dataBuilder.stubSettings(), pipelineOptions);
 
+    if (ExperimentalOptions.hasExperiment(pipelineOptions, "enable_bigtable_flow_control")) {
+      dataBuilder.enableBatchMutationCPUBasedThrottling();
+    }
+
     return dataBuilder;
   }
 
@@ -219,6 +224,10 @@ class BigtableConfigTranslator {
 
     if (writeOptions.getThrottlingTargetMs() != null) {
       settings.enableBatchMutationLatencyBasedThrottling(writeOptions.getThrottlingTargetMs());
+    }
+
+    if (writeOptions.getCPUBasedFlowControl()) {
+      settings.enableBatchMutationCPUBasedThrottling();
     }
 
     settings

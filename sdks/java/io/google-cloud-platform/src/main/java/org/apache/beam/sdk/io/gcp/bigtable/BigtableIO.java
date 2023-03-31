@@ -1003,6 +1003,19 @@ public class BigtableIO {
           .build();
     }
 
+    /**
+     * Returns a new {@link BIgtableOptions.Write} with flow control enabled which will reduce the
+     * likelihood of a dataflow job overloading a Cloud Bigtable cluster.
+     *
+     * <p>Does not modify this object.
+     */
+    public Write withFlowControlEnabled() {
+      BigtableWriteOptions options = getBigtableWriteOptions();
+      return toBuilder()
+          .setBigtableWriteOptions(options.toBuilder().setCPUBasedFlowControl(true).build())
+          .build();
+    }
+
     @VisibleForTesting
     Write withServiceFactory(BigtableServiceFactory factory) {
       return toBuilder().setServiceFactory(factory).build();
