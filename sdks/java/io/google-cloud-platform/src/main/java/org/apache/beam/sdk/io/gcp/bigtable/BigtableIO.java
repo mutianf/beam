@@ -1023,7 +1023,7 @@ public class BigtableIO {
      * <p>Does not modify this object.
      */
     @Experimental
-    Write withFlowControlCPUTarget(int targetCPU) {
+    public Write withFlowControlCPUTarget(int targetCPU) {
       BigtableWriteOptions options = getBigtableWriteOptions();
       return toBuilder()
           .setBigtableWriteOptions(
