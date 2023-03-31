@@ -57,6 +57,9 @@ abstract class BigtableWriteOptions implements Serializable {
   /** Returns the target latency if latency based throttling is enabled. */
   abstract @Nullable Integer getThrottlingTargetMs();
 
+  /** Returns true if CPU based flow control is enabled. */
+  abstract @Nullable Boolean getCPUBasedFlowControl();
+
   abstract Builder toBuilder();
 
   static Builder builder() {
@@ -81,6 +84,8 @@ abstract class BigtableWriteOptions implements Serializable {
     abstract Builder setMaxOutstandingBytes(long bytes);
 
     abstract Builder setThrottlingTargetMs(int targetMs);
+
+    abstract Builder setCPUBasedFlowControl(boolean enabled);
 
     abstract BigtableWriteOptions build();
   }
@@ -109,7 +114,10 @@ abstract class BigtableWriteOptions implements Serializable {
                 .withLabel("Write max outstanding elements"))
         .addIfNotNull(
             DisplayData.item("maxOutstandingBytes", getMaxOutstandingBytes())
-                .withLabel("Write max outstanding bytes"));
+                .withLabel("Write max outstanding bytes"))
+        .addIfNotNull(
+            DisplayData.item("isCPUBasedFlowControlEnabled", getCPUBasedFlowControl())
+                .withLabel("CPU based flow control enabled"));
   }
 
   void validate() {
