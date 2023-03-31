@@ -430,11 +430,10 @@ class BeamModulePlugin implements Plugin<Project> {
 
     project.ext.mavenGroupId = 'org.apache.beam'
 
-    // Automatically use the official release version if we are performing a release
-    // otherwise append '-SNAPSHOT'
-    project.version = '2.48.0'
-    if (!isRelease(project)) {
-      project.version += '-SNAPSHOT'
+    // Publish a private preview version for google-cloud-platform SDKs
+    project.version = '2.46.0'
+    if (project.path == ":sdks:java:io:google-cloud-platform") {
+      project.version = "2.47.0-flow-control-preview1-SNAPSHOT"
     }
 
     // Default to dash-separated directories for artifact base name,
@@ -661,7 +660,7 @@ class BeamModulePlugin implements Plugin<Project> {
         google_auth_library_oauth2_http             : "com.google.auth:google-auth-library-oauth2-http", // google_cloud_platform_libraries_bom sets version
         google_cloud_bigquery                       : "com.google.cloud:google-cloud-bigquery", // google_cloud_platform_libraries_bom sets version
         google_cloud_bigquery_storage               : "com.google.cloud:google-cloud-bigquerystorage", // google_cloud_platform_libraries_bom sets version
-        google_cloud_bigtable                       : "com.google.cloud:google-cloud-bigtable:2.20.3-SNAPSHOT", // version update will be removed once libraries bom is released
+        google_cloud_bigtable                       : "com.google.cloud:google-cloud-bigtable", // google_cloud_platform_libraries_bom sets version
         google_cloud_bigtable_client_core_config    : "com.google.cloud.bigtable:bigtable-client-core-config:1.28.0",
         google_cloud_bigtable_emulator              : "com.google.cloud:google-cloud-bigtable-emulator:0.147.3",
         google_cloud_core                           : "com.google.cloud:google-cloud-core", // google_cloud_platform_libraries_bom sets version
@@ -774,7 +773,7 @@ class BeamModulePlugin implements Plugin<Project> {
         protobuf_java_util                          : "com.google.protobuf:protobuf-java-util:$protobuf_version",
         proto_google_cloud_bigquery_storage_v1      : "com.google.api.grpc:proto-google-cloud-bigquerystorage-v1", // google_cloud_platform_libraries_bom sets version
         proto_google_cloud_bigtable_admin_v2        : "com.google.api.grpc:proto-google-cloud-bigtable-admin-v2", // google_cloud_platform_libraries_bom sets version
-        proto_google_cloud_bigtable_v2              : "com.google.api.grpc:proto-google-cloud-bigtable-v2:2.20.3-SNAPSHOT", // version update will be removed once libraries bom is released
+        proto_google_cloud_bigtable_v2              : "com.google.api.grpc:proto-google-cloud-bigtable-v2", // google_cloud_platform_libraries_bom sets version
         proto_google_cloud_datacatalog_v1beta1      : "com.google.api.grpc:proto-google-cloud-datacatalog-v1beta1", // google_cloud_platform_libraries_bom sets version
         proto_google_cloud_datastore_v1             : "com.google.api.grpc:proto-google-cloud-datastore-v1", // google_cloud_platform_libraries_bom sets version
         proto_google_cloud_firestore_v1             : "com.google.api.grpc:proto-google-cloud-firestore-v1", // google_cloud_platform_libraries_bom sets version
