@@ -153,17 +153,17 @@ class BigtableConfigTranslator {
 
     if (!Strings.isNullOrEmpty(
         ExperimentalOptions.getExperimentValue(
-            pipelineOptions, "bigtable_flow_control_cpu_target"))) {
+            pipelineOptions, "bigtable_bulk_mutation_flow_control_target_cpu"))) {
       int cpuTarget =
           Integer.parseInt(
               ExperimentalOptions.getExperimentValue(
-                  pipelineOptions, "bigtable_flow_control_cpu_target"));
+                  pipelineOptions, "bigtable_bulk_mutation_flow_control_target_cpu"));
 
       LOG.info("Enabling flow control for bigtable with CPU target=" + cpuTarget);
-      dataBuilder.enableBatchMutationCPUBasedThrottling(cpuTarget);
-    } else if (ExperimentalOptions.hasExperiment(pipelineOptions, "enable_bigtable_flow_control")) {
+      dataBuilder.enableCpuBasedBulkMutationsFlowControl(cpuTarget);
+    } else if (ExperimentalOptions.hasExperiment(pipelineOptions, "enable_bigtable_bulk_mutation_flow_control")) {
       LOG.info("Enabling flow control for bigtable");
-      dataBuilder.enableBatchMutationCPUBasedThrottling();
+      dataBuilder.setBulkMutationFlowControl(true);
     }
 
     return dataBuilder;
@@ -183,15 +183,17 @@ class BigtableConfigTranslator {
 
   private static void configureChannelPool(
       StubSettings.Builder<?, ?> stubSettings, BigtableConfig config) {
+    InstantiatingGrpcChannelProvider.Builder grpcChannelProvider =
+        ((InstantiatingGrpcChannelProvider) stubSettings.getTransportChannelProvider()).toBuilder();
+
+    // TODO re-enable direct path after headers are properly set
+    grpcChannelProvider.setAttemptDirectPath(false);
+
     if (config.getChannelCount() != null) {
-      InstantiatingGrpcChannelProvider grpcChannelProvider =
-          (InstantiatingGrpcChannelProvider) stubSettings.getTransportChannelProvider();
-      stubSettings.setTransportChannelProvider(
-          grpcChannelProvider
-              .toBuilder()
-              .setChannelPoolSettings(ChannelPoolSettings.staticallySized(config.getChannelCount()))
-              .build());
+      grpcChannelProvider.setChannelPoolSettings(
+          ChannelPoolSettings.staticallySized(config.getChannelCount()));
     }
+    stubSettings.setTransportChannelProvider(grpcChannelProvider.build());
   }
 
   private static BigtableDataSettings configureWriteSettings(
@@ -241,12 +243,12 @@ class BigtableConfigTranslator {
       settings.enableBatchMutationLatencyBasedThrottling(writeOptions.getThrottlingTargetMs());
     }
 
-    if (Boolean.TRUE.equals(writeOptions.getCPUBasedFlowControl())) {
-      settings.enableBatchMutationCPUBasedThrottling();
+    if (Boolean.TRUE.equals(writeOptions.getFlowControlEnabled())) {
+      settings.setBulkMutationFlowControl(true);
     }
 
-    if (writeOptions.getCPUBasedFlowControlTarget() != null) {
-      settings.enableBatchMutationCPUBasedThrottling(writeOptions.getCPUBasedFlowControlTarget());
+    if (writeOptions.getFlowControlTargetCpu() != null) {
+      settings.enableCpuBasedBulkMutationsFlowControl(writeOptions.getFlowControlTargetCpu());
     }
 
     settings

@@ -1012,7 +1012,7 @@ public class BigtableIO {
     public Write withFlowControlEnabled() {
       BigtableWriteOptions options = getBigtableWriteOptions();
       return toBuilder()
-          .setBigtableWriteOptions(options.toBuilder().setCPUBasedFlowControl(true).build())
+          .setBigtableWriteOptions(options.toBuilder().setFlowControlEnabled(true).build())
           .build();
     }
 
@@ -1023,11 +1023,11 @@ public class BigtableIO {
      * <p>Does not modify this object.
      */
     @Experimental
-    public Write withFlowControlCPUTarget(int targetCPU) {
+    public Write withFlowControlTargetCpu(int targetCpu) {
       BigtableWriteOptions options = getBigtableWriteOptions();
       return toBuilder()
           .setBigtableWriteOptions(
-              options.toBuilder().setCPUBasedFlowControlTarget(targetCPU).build())
+              options.toBuilder().setFlowControlTargetCpu(targetCpu).build())
           .build();
     }
 
