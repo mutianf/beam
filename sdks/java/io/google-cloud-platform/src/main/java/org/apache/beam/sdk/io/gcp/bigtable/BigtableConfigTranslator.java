@@ -151,17 +151,7 @@ class BigtableConfigTranslator {
     configureChannelPool(dataBuilder.stubSettings(), config);
     configureHeaderProvider(dataBuilder.stubSettings(), pipelineOptions);
 
-    if (!Strings.isNullOrEmpty(
-        ExperimentalOptions.getExperimentValue(
-            pipelineOptions, "bigtable_bulk_mutation_flow_control_target_cpu"))) {
-      int cpuTarget =
-          Integer.parseInt(
-              ExperimentalOptions.getExperimentValue(
-                  pipelineOptions, "bigtable_bulk_mutation_flow_control_target_cpu"));
-
-      LOG.info("Enabling flow control for bigtable with CPU target=" + cpuTarget);
-      dataBuilder.enableCpuBasedBulkMutationsFlowControl(cpuTarget);
-    } else if (ExperimentalOptions.hasExperiment(pipelineOptions, "enable_bigtable_bulk_mutation_flow_control")) {
+    if (ExperimentalOptions.hasExperiment(pipelineOptions, "enable_bigtable_bulk_mutation_flow_control")) {
       LOG.info("Enabling flow control for bigtable");
       dataBuilder.setBulkMutationFlowControl(true);
     }
@@ -245,10 +235,6 @@ class BigtableConfigTranslator {
 
     if (Boolean.TRUE.equals(writeOptions.getFlowControlEnabled())) {
       settings.setBulkMutationFlowControl(true);
-    }
-
-    if (writeOptions.getFlowControlTargetCpu() != null) {
-      settings.enableCpuBasedBulkMutationsFlowControl(writeOptions.getFlowControlTargetCpu());
     }
 
     settings
