@@ -151,7 +151,8 @@ class BigtableConfigTranslator {
     configureChannelPool(dataBuilder.stubSettings(), config);
     configureHeaderProvider(dataBuilder.stubSettings(), pipelineOptions);
 
-    if (ExperimentalOptions.hasExperiment(pipelineOptions, "enable_bigtable_bulk_mutation_flow_control")) {
+    if (ExperimentalOptions.hasExperiment(
+        pipelineOptions, "enable_bigtable_bulk_mutation_flow_control")) {
       LOG.info("Enabling flow control for bigtable");
       dataBuilder.setBulkMutationFlowControl(true);
     }
