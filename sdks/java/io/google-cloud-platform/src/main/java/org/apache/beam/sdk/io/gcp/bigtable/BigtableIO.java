@@ -643,6 +643,16 @@ public class BigtableIO {
           .build();
     }
 
+    /**
+     * Returns a new {@link BigtableIO.Read} with client side metrics enabled.
+     *
+     * <p>Does not modify this object.
+     */
+    public Read withClientSideMetrics(boolean enable) {
+      BigtableConfig.Builder config = getBigtableConfig().toBuilder();
+      return toBuilder().setBigtableConfig(config.setClientSideMetrics(enable).build()).build();
+    }
+
     Read withServiceFactory(BigtableServiceFactory factory) {
       return toBuilder().setServiceFactory(factory).build();
     }
@@ -1001,6 +1011,16 @@ public class BigtableIO {
       return toBuilder()
           .setBigtableWriteOptions(options.toBuilder().setMaxOutstandingBytes(bytes).build())
           .build();
+    }
+
+    /**
+     * Returns a new {@link BigtableIO.Write} with client side metrics enabled.
+     *
+     * <p>Does not modify this object.
+     */
+    public Write withClientSideMetrics(boolean enable) {
+      BigtableConfig.Builder config = getBigtableConfig().toBuilder();
+      return toBuilder().setBigtableConfig(config.setClientSideMetrics(enable).build()).build();
     }
 
     @VisibleForTesting

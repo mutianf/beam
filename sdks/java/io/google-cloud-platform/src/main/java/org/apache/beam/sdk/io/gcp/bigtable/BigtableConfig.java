@@ -76,8 +76,11 @@ public abstract class BigtableConfig implements Serializable {
    */
   abstract @Nullable CredentialFactory getCredentialFactory();
 
-  /** Get number of channels. */
+  /** Gets number of channels. */
   abstract @Nullable Integer getChannelCount();
+
+  /** Gets if client side metrics is enabled. */
+  abstract @Nullable Boolean getClientSideMetrics();
 
   abstract Builder toBuilder();
 
@@ -112,6 +115,8 @@ public abstract class BigtableConfig implements Serializable {
     abstract Builder setCredentialFactory(CredentialFactory credentialFactory);
 
     abstract Builder setChannelCount(int count);
+
+    abstract Builder setClientSideMetrics(boolean enable);
 
     abstract BigtableConfig build();
   }

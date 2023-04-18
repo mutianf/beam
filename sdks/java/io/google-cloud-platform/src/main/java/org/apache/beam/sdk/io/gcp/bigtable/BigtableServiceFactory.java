@@ -115,6 +115,10 @@ class BigtableServiceFactory implements Serializable {
       }
       BigtableDataSettings settings =
           BigtableConfigTranslator.translateReadToVeneerSettings(config, opts, pipelineOptions);
+      if (config.getClientSideMetrics() != null && config.getClientSideMetrics()) {
+        LOG.info("Client side metrics is enabled");
+        BigtableDataSettings.enableBuiltinMetrics();
+      }
       BigtableService service;
       if (opts.getWaitTimeout() != null) {
         service = new BigtableServiceImpl(settings, opts.getWaitTimeout());
@@ -155,6 +159,11 @@ class BigtableServiceFactory implements Serializable {
 
       BigtableDataSettings settings =
           BigtableConfigTranslator.translateWriteToVeneerSettings(config, opts, pipelineOptions);
+
+      if (config.getClientSideMetrics() != null && config.getClientSideMetrics()) {
+        LOG.info("Client side metrics is enabled");
+        BigtableDataSettings.enableBuiltinMetrics();
+      }
       BigtableService service = new BigtableServiceImpl(settings);
       entry = BigtableServiceEntry.create(configId, service);
       entries.put(configId.id(), entry);
