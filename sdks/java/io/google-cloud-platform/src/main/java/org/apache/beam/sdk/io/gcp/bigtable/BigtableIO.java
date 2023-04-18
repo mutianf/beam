@@ -1009,10 +1009,10 @@ public class BigtableIO {
      *
      * <p>Does not modify this object.
      */
-    public Write withFlowControlEnabled() {
+    public Write withFlowControl(boolean enable) {
       BigtableWriteOptions options = getBigtableWriteOptions();
       return toBuilder()
-          .setBigtableWriteOptions(options.toBuilder().setFlowControlEnabled(true).build())
+          .setBigtableWriteOptions(options.toBuilder().setFlowControl(enable).build())
           .build();
     }
 
