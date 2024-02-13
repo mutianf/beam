@@ -18,7 +18,18 @@
 
 import groovy.json.JsonOutput
 
-plugins { id 'org.apache.beam.module' }
+plugins {
+  id 'org.apache.beam.module'
+  id "maven-publish"
+  id "com.google.cloud.artifactregistry.gradle-plugin" version "2.1.5"
+}
+
+repositories {
+  maven {
+    url "artifactregistry://us-central1-maven.pkg.dev/cloud-bigtable-ecosystem/databoost"
+  }
+}
+
 applyJavaNature(
   automaticModuleName: 'org.apache.beam.sdk.io.gcp',
   enableSpotbugs: false,
@@ -29,6 +40,14 @@ applyJavaNature(
 
 description = "Apache Beam :: SDKs :: Java :: IO :: Google Cloud Platform"
 ext.summary = "IO library to read and write Google Cloud Platform systems from Beam."
+
+configurations.all {
+  resolutionStrategy {
+    force group: 'com.google.cloud', name: 'google-cloud-bigtable', version: '2.31.1-uuid-SNAPSHOT'
+    force group: 'com.google.api.grpc', name: 'proto-google-cloud-bigtable-v2', version: '2.31.1-uuid-SNAPSHOT'
+    force group: 'com.google.api.grpc', name: 'grpc-google-cloud-bigtable-v2', version: '2.31.1-uuid-SNAPSHOT'
+  }
+}
 
 dependencies {
   implementation enforcedPlatform(library.java.google_cloud_platform_libraries_bom)

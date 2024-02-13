@@ -114,6 +114,18 @@ class BigtableConfigTranslator {
       dataBuilder = BigtableDataSettings.newBuilder();
     }
 
+    InstantiatingGrpcChannelProvider channelProvider =
+            ((InstantiatingGrpcChannelProvider) dataBuilder.stubSettings().getTransportChannelProvider())
+                    .toBuilder()
+                    .setAttemptDirectPath(false)
+                    .build();
+
+    dataBuilder.stubSettings().setTransportChannelProvider(channelProvider);
+
+    if (config.getEndpoint() != null) {
+      dataBuilder.stubSettings().setEndpoint(config.getEndpoint());
+    }
+
     // Configure target
     dataBuilder
         .setProjectId(Objects.requireNonNull(config.getProjectId().get()))

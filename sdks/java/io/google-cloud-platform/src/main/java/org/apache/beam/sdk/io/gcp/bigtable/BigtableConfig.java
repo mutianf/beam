@@ -74,6 +74,8 @@ public abstract class BigtableConfig implements Serializable {
   /** User agent for this job. */
   abstract @Nullable String getUserAgent();
 
+  abstract @Nullable String getEndpoint();
+
   /**
    * Credentials for running the job. Use the default credentials in {@link GcpOptions} if it's not
    * set.
@@ -118,6 +120,8 @@ public abstract class BigtableConfig implements Serializable {
     abstract Builder setChannelCount(int count);
 
     abstract Builder setBigtableClientOverride(BigtableClientOverride clientOverride);
+
+    abstract Builder setEndpoint(String endpoint);
 
     abstract BigtableConfig build();
   }

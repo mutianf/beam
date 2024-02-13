@@ -675,6 +675,11 @@ public class BigtableIO {
       return toBuilder().setBigtableConfig(config.withEmulator(emulatorHost)).build();
     }
 
+    public Read withEndpoint(String endpoint) {
+      BigtableConfig config = getBigtableConfig();
+      return toBuilder().setBigtableConfig(config.toBuilder().setEndpoint(endpoint).build()).build();
+    }
+
     /**
      * Returns a new {@link BigtableIO.Read} with the attempt timeout. Attempt timeout controls the
      * timeout for each remote call.
