@@ -20,7 +20,7 @@
 // directory.
 module github.com/apache/beam/sdks/v2
 
-go 1.21
+go 1.23.0
 
 require (
 	cloud.google.com/go/bigquery v1.63.0
@@ -55,9 +55,9 @@ require (
 	go.mongodb.org/mongo-driver v1.17.1
 	golang.org/x/net v0.30.0
 	golang.org/x/oauth2 v0.23.0
-	golang.org/x/sync v0.8.0
+	golang.org/x/sync v0.14.0
 	golang.org/x/sys v0.26.0
-	golang.org/x/text v0.19.0
+	golang.org/x/text v0.25.0
 	google.golang.org/api v0.199.0
 	google.golang.org/genproto v0.0.0-20240903143218-8af14fe29dc1
 	google.golang.org/grpc v1.67.1
