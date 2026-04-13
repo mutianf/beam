@@ -1190,7 +1190,40 @@ public class BigtableIOTest {
     List<BigtableSource> splits = source.split(numRows * bytesPerRow / numSplits, null);
 
     // Test num splits and split equality.
-    assertThat(splits, hasSize(numSplits));
+    assertThat(splits, hasSize(numSamples));
+    assertSourcesEqualReferenceSource(source, splits, null /* options */);
+  }
+
+  /** Tests reading all rows from a table where small tablets are merged. */
+  @Test
+  public void testReadingWithMergingTablets() throws Exception {
+    final String table = "TEST-MERGING-TABLETS";
+    final int numRows = 10;
+    final int numSamples = 10;
+    final long bytesPerRow = 100L;
+
+    // Set up test table data and sample row keys for size estimation and splitting.
+    makeTableData(table, numRows);
+    service.setupSampleRowKeys(table, numSamples, bytesPerRow);
+
+    // Generate source and split it.
+    BigtableSource source =
+        new BigtableSource(
+            factory,
+            configId,
+            config,
+            BigtableReadOptions.builder()
+                .setTableId(StaticValueProvider.of(table))
+                .setKeyRanges(ALL_KEY_RANGE)
+                .build(),
+            null /*size*/);
+
+    // We want bundle size to be 300, so it should merge 3 samples of 100 bytes each.
+    long desiredBundleSize = 300L;
+    List<BigtableSource> splits = source.split(desiredBundleSize, null);
+
+    // We expect 4 splits: (3 merged) + (3 merged) + (3 merged) + (1 remainder)
+    assertThat(splits, hasSize(4));
     assertSourcesEqualReferenceSource(source, splits, null /* options */);
   }
 
@@ -1201,13 +1234,9 @@ public class BigtableIOTest {
     final int numRows = 1000;
     final int numSamples = 10;
     final int numSplits = 20;
-    // We expect 24 splits instead of 20 due to the multiple ranges. For a key of 330 separating
-    // the multiple ranges, first the [300, 330) range is subsplit into two (since numSplits is
-    // twice numSamples), so we get [300, 315) and [315, 330). Then, the [330, 400) range is also
-    // split into two, resulting in [330, 365) and [365, 400). These ranges would instead be
-    // [300, 350) and [350, 400) if this source was one range. Thus, each extra range adds two
-    // resulting splits.
-    final int expectedNumSplits = 24;
+    // We expect 12 splits now because sub-splitting by size is disabled.
+    // The 10 samples are cut by 2 range boundaries (330 and 730), adding 2 more splits.
+    final int expectedNumSplits = 12;
     final long bytesPerRow = 100L;
 
     // Set up test table data and sample row keys for size estimation and splitting.
@@ -1282,7 +1311,7 @@ public class BigtableIOTest {
     List<BigtableSource> splits = source.split(numRows * bytesPerRow / numSplits, null);
 
     // Test num splits and split equality.
-    assertThat(splits, hasSize(numSplits));
+    assertThat(splits, hasSize(numSamples));
     assertSourcesEqualReferenceSource(source, splits, null /* options */);
   }
 

@@ -1619,7 +1619,7 @@ public class BigtableIO {
       }
     }
 
-    private static final long MAX_SPLIT_COUNT = 15_360L;
+    private static final long MAX_SPLIT_COUNT = 5_000_000L;
 
     @Override
     public List<BigtableSource> split(long desiredBundleSizeBytes, PipelineOptions options)
@@ -1769,20 +1769,17 @@ public class BigtableIO {
     private List<BigtableSource> splitRangeBasedOnSamples(
         long desiredBundleSizeBytes, List<KeyOffset> sampleRowKeys, ByteKeyRange range) {
 
-      // Loop through all sampled responses and generate splits from the ones that overlap the
-      // scan range. The main complication is that we must track the end range of the previous
-      // sample to generate good ranges.
+      ImmutableList.Builder<BigtableSource> splits = ImmutableList.builder();
       ByteKey lastEndKey = ByteKey.EMPTY;
       long lastOffset = 0;
-      ImmutableList.Builder<BigtableSource> splits = ImmutableList.builder();
+
+      List<ByteKeyRange> currentRanges = new ArrayList<>();
+      long currentAccumulatedSize = 0;
+
       for (KeyOffset keyOffset : sampleRowKeys) {
         ByteKey responseEndKey = makeByteKey(keyOffset.getKey());
         long responseOffset = keyOffset.getOffsetBytes();
-        checkState(
-            responseOffset >= lastOffset,
-            "Expected response byte offset %s to come after the last offset %s",
-            responseOffset,
-            lastOffset);
+        long sampleSizeBytes = responseOffset - lastOffset;
 
         if (!range.overlaps(ByteKeyRange.of(lastEndKey, responseEndKey))) {
           // This region does not overlap the scan, so skip it.
@@ -1797,7 +1794,6 @@ public class BigtableIO {
         if (splitStartKey.compareTo(range.getStartKey()) < 0) {
           splitStartKey = range.getStartKey();
         }
-
         // Calculate the end of the split as the smaller of endKey and the end of this sample. Note
         // that range.containsKey handles the case when range.getEndKey() is empty.
         ByteKey splitEndKey = responseEndKey;
@@ -1805,19 +1801,59 @@ public class BigtableIO {
           splitEndKey = range.getEndKey();
         }
 
-        // We know this region overlaps the desired key range, and we know a rough estimate of its
-        // size. Split the key range into bundle-sized chunks and then add them all as splits.
-        long sampleSizeBytes = responseOffset - lastOffset;
-        List<BigtableSource> subSplits =
-            splitKeyRangeIntoBundleSizedSubranges(
-                sampleSizeBytes,
-                desiredBundleSizeBytes,
-                ByteKeyRange.of(splitStartKey, splitEndKey));
-        splits.addAll(subSplits);
+        ByteKeyRange currentTabletRange = ByteKeyRange.of(splitStartKey, splitEndKey);
+
+        if (sampleSizeBytes > desiredBundleSizeBytes) {
+          // Flush accumulated ranges first
+          if (!currentRanges.isEmpty()) {
+            List<ByteKeyRange> merged = mergeRanges(currentRanges);
+            splits.add(
+                new BigtableSource(
+                    factory,
+                    configId,
+                    config,
+                    readOptions.withKeyRanges(merged),
+                    currentAccumulatedSize));
+            currentRanges = new ArrayList<>();
+            currentAccumulatedSize = 0;
+          }
+          // Add this large tablet as a single split (do nothing to split it)
+          splits.add(
+              this.withSingleRange(currentTabletRange).withEstimatedSizeBytes(sampleSizeBytes));
+        } else {
+          // Accumulate
+          currentRanges.add(currentTabletRange);
+          currentAccumulatedSize += sampleSizeBytes;
+
+          if (currentAccumulatedSize >= desiredBundleSizeBytes) {
+            List<ByteKeyRange> merged = mergeRanges(currentRanges);
+            splits.add(
+                new BigtableSource(
+                    factory,
+                    configId,
+                    config,
+                    readOptions.withKeyRanges(merged),
+                    currentAccumulatedSize));
+            currentRanges = new ArrayList<>();
+            currentAccumulatedSize = 0;
+          }
+        }
 
         // Move to the next region.
         lastEndKey = responseEndKey;
         lastOffset = responseOffset;
+      }
+
+      // Flush remainder
+      if (!currentRanges.isEmpty()) {
+        List<ByteKeyRange> merged = mergeRanges(currentRanges);
+        splits.add(
+            new BigtableSource(
+                factory,
+                configId,
+                config,
+                readOptions.withKeyRanges(merged),
+                currentAccumulatedSize));
       }
 
       // We must add one more region after the end of the samples if both these conditions hold:
@@ -1829,7 +1865,8 @@ public class BigtableIO {
       }
 
       List<BigtableSource> ret = splits.build();
-      LOG.info("Generated {} splits. First split: {}", ret.size(), ret.get(0));
+      LOG.info(
+          "Generated {} splits. First split: {}", ret.size(), ret.isEmpty() ? "null" : ret.get(0));
       return ret;
     }
 

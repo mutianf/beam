@@ -371,6 +371,20 @@ class BigtableConfigTranslator {
 
     settings.stubSettings().readRowsSettings().setRetrySettings(retrySettings.build());
 
+    settings
+        .stubSettings()
+        .sampleRowKeysSettings()
+        .setRetrySettings(
+            settings
+                .stubSettings()
+                .sampleRowKeysSettings()
+                .getRetrySettings()
+                .toBuilder()
+                .setInitialRpcTimeout(Duration.ofMinutes(20))
+                .setMaxRpcTimeout(Duration.ofMinutes(20))
+                .setTotalTimeout(Duration.ofMinutes(20))
+                .build());
+
     return settings.build();
   }
 
