@@ -36,8 +36,8 @@ class Repositories {
         return
       }
 
-      mavenCentral()
       mavenLocal()
+      mavenCentral()
 
       // For Confluent Kafka dependencies
       maven {

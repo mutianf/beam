@@ -638,7 +638,7 @@ class BeamModulePlugin implements Plugin<Project> {
     // [bomupgrader] determined by: com.google.protobuf:protobuf-java, consistent with: google_cloud_platform_libraries_bom
     def protobuf_version = "4.33.2"
     // TODO(https://github.com/apache/beam/issues/37637): Remove this once the Bom has been updated to at least reach this version
-    def bigtable_version = "2.73.1"
+    def bigtable_version = "2.77.2-SNAPSHOT"
     def qpid_jms_client_version = "0.61.0"
     def quickcheck_version = "1.0"
     def sbe_tool_version = "1.25.1"

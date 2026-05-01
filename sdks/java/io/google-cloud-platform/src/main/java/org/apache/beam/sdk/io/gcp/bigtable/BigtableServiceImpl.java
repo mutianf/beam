@@ -26,7 +26,6 @@ import com.google.api.gax.grpc.GrpcCallContext;
 import com.google.api.gax.rpc.ApiException;
 import com.google.api.gax.rpc.DeadlineExceededException;
 import com.google.api.gax.rpc.ResponseObserver;
-import com.google.api.gax.rpc.ServerStream;
 import com.google.api.gax.rpc.StreamController;
 import com.google.bigtable.v2.Cell;
 import com.google.bigtable.v2.Column;
@@ -54,7 +53,6 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -140,13 +138,16 @@ class BigtableServiceImpl implements BigtableService {
     private final String instanceId;
     private final String tableId;
 
-    private final List<ByteKeyRange> ranges;
-    private final RowFilter rowFilter;
-    private Iterator<Row> results;
+    private final List<org.apache.beam.sdk.io.range.ByteKeyRange> ranges;
+    private final com.google.bigtable.v2.RowFilter rowFilter;
+    private java.util.Iterator<com.google.bigtable.v2.Row> results;
 
-    private Row currentRow;
+    private com.google.bigtable.v2.Row currentRow;
+    private com.google.api.gax.rpc.ServerStream<com.google.bigtable.v2.Row> stream;
 
-    private ServerStream<Row> stream;
+    private final java.util.Queue<com.google.protobuf.ByteString> skippedLargeKeys =
+        new java.util.concurrent.ConcurrentLinkedQueue<>();
+    private com.google.bigtable.v2.Row bufferedRow = null;
 
     private boolean exhausted;
     private final boolean skipLargeRows;
@@ -188,7 +189,13 @@ class BigtableServiceImpl implements BigtableService {
         if (skipLargeRows) {
           stream =
               client
-                  .skipLargeRowsCallable(new BigtableRowProtoAdapter())
+                  .skipLargeRowsCallable(
+                      new BigtableRowProtoAdapter() {
+                        @Override
+                        public void onLargeRowSkipped(com.google.protobuf.ByteString key) {
+                          skippedLargeKeys.add(key);
+                        }
+                      })
                   .call(query, GrpcCallContext.createDefault());
         } else {
           stream =
@@ -207,10 +214,60 @@ class BigtableServiceImpl implements BigtableService {
 
     @Override
     public boolean advance() throws IOException {
-      if (results.hasNext()) {
-        currentRow = results.next();
+      if (exhausted) {
+        return false;
+      }
+
+      // 1. Ensure we have a buffered row from the GAX stream if available
+      if (bufferedRow == null && results.hasNext()) {
+        bufferedRow = results.next();
+      }
+
+      com.google.protobuf.ByteString largeKey = skippedLargeKeys.peek();
+
+      // Helper to build a completely unambiguous DLQ marker row
+      java.util.function.Supplier<com.google.bigtable.v2.Row> buildMarkerRow = () -> 
+          com.google.bigtable.v2.Row.newBuilder()
+              .setKey(largeKey)
+              .addFamilies(
+                  com.google.bigtable.v2.Family.newBuilder()
+                      .setName("__BEAM_DLQ_LARGE_ROW__")
+              )
+              .build();
+
+      // 2. If both a healthy row and a large key are buffered, yield them in chronological order!
+      if (bufferedRow != null && largeKey != null) {
+        org.apache.beam.sdk.io.range.ByteKey bLarge =
+            org.apache.beam.sdk.io.range.ByteKey.copyFrom(largeKey.toByteArray());
+        org.apache.beam.sdk.io.range.ByteKey bHealthy =
+            org.apache.beam.sdk.io.range.ByteKey.copyFrom(bufferedRow.getKey().toByteArray());
+
+        if (bLarge.compareTo(bHealthy) < 0) {
+          skippedLargeKeys.poll();
+          currentRow = buildMarkerRow.get();
+          return true;
+        } else {
+          // The healthy row happened chronologically BEFORE the large row. Yield it first.
+          currentRow = bufferedRow;
+          bufferedRow = null;
+          return true;
+        }
+      }
+
+      // 3. If only a large key is left
+      if (largeKey != null) {
+        skippedLargeKeys.poll();
+        currentRow = buildMarkerRow.get();
         return true;
       }
+
+      // 4. If only a healthy row is left
+      if (bufferedRow != null) {
+        currentRow = bufferedRow;
+        bufferedRow = null;
+        return true;
+      }
+
       exhausted = true;
       return false;
     }

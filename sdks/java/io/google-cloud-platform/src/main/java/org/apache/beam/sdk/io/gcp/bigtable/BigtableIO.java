@@ -406,6 +406,9 @@ public class BigtableIO {
       return getBigtableConfig().getBigtableOptions();
     }
 
+    abstract @Nullable ErrorHandler<org.apache.beam.sdk.transforms.errorhandling.BadRecord, ?>
+        getBadRecordErrorHandler();
+
     abstract Builder toBuilder();
 
     static Read create() {
@@ -420,6 +423,7 @@ public class BigtableIO {
                       StaticValueProvider.of(Collections.singletonList(ByteKeyRange.ALL_KEYS)))
                   .build())
           .setServiceFactory(new BigtableServiceFactory())
+          .setBadRecordErrorHandler(new ErrorHandler.DefaultErrorHandler<>())
           .build();
     }
 
@@ -431,6 +435,10 @@ public class BigtableIO {
       abstract Builder setBigtableReadOptions(BigtableReadOptions bigtableReadOptions);
 
       abstract Builder setServiceFactory(BigtableServiceFactory factory);
+
+      abstract Builder setBadRecordErrorHandler(
+          ErrorHandler<org.apache.beam.sdk.transforms.errorhandling.BadRecord, ?>
+              badRecordErrorHandler);
 
       abstract Read build();
     }
@@ -732,6 +740,11 @@ public class BigtableIO {
       return toBuilder().setServiceFactory(factory).build();
     }
 
+    public Read withErrorHandler(
+        ErrorHandler<org.apache.beam.sdk.transforms.errorhandling.BadRecord, ?> errorHandler) {
+      return toBuilder().setBadRecordErrorHandler(errorHandler).build();
+    }
+
     @Override
     public PCollection<Row> expand(PBegin input) {
       getBigtableConfig().validate();
@@ -744,7 +757,40 @@ public class BigtableIO {
               getBigtableConfig(),
               getBigtableReadOptions(),
               null);
-      return input.getPipeline().apply(org.apache.beam.sdk.io.Read.from(source));
+
+      PCollection<Row> rawStream =
+          input.getPipeline().apply(org.apache.beam.sdk.io.Read.from(source));
+
+      org.apache.beam.sdk.values.TupleTag<Row> successTag =
+          new org.apache.beam.sdk.values.TupleTag<Row>() {};
+      org.apache.beam.sdk.values.TupleTag<org.apache.beam.sdk.transforms.errorhandling.BadRecord>
+          dlqTag =
+              new org.apache.beam.sdk.values.TupleTag<
+                  org.apache.beam.sdk.transforms.errorhandling.BadRecord>() {};
+
+      final boolean hasErrorHandler =
+          getBadRecordErrorHandler() != null
+              && !(getBadRecordErrorHandler() instanceof ErrorHandler.DefaultErrorHandler);
+
+      org.apache.beam.sdk.values.PCollectionTuple routed =
+          rawStream.apply(
+              "Route Large Rows",
+              org.apache.beam.sdk.transforms.ParDo.of(
+                      new RouteLargeRowsFn(dlqTag, successTag, hasErrorHandler))
+                  .withOutputTags(successTag, org.apache.beam.sdk.values.TupleTagList.of(dlqTag)));
+
+      if (getBadRecordErrorHandler() != null
+          && !(getBadRecordErrorHandler() instanceof ErrorHandler.DefaultErrorHandler)) {
+        getBadRecordErrorHandler()
+            .addErrorCollection(
+                routed
+                    .get(dlqTag)
+                    .setCoder(
+                        org.apache.beam.sdk.transforms.errorhandling.BadRecord.getCoder(
+                            input.getPipeline())));
+      }
+
+      return routed.get(successTag);
     }
 
     @Override
@@ -776,6 +822,52 @@ public class BigtableIO {
           checkArgument(exists, "Table %s does not exist", tableId);
         } catch (IOException e) {
           throw new RuntimeException(e);
+        }
+      }
+    }
+
+    private static class RouteLargeRowsFn extends org.apache.beam.sdk.transforms.DoFn<Row, Row> {
+      private final org.apache.beam.sdk.values.TupleTag<
+              org.apache.beam.sdk.transforms.errorhandling.BadRecord>
+          dlqTag;
+      private final org.apache.beam.sdk.values.TupleTag<Row> successTag;
+      private final boolean hasErrorHandler;
+
+      RouteLargeRowsFn(
+          org.apache.beam.sdk.values.TupleTag<
+                  org.apache.beam.sdk.transforms.errorhandling.BadRecord>
+              dlqTag,
+          org.apache.beam.sdk.values.TupleTag<Row> successTag,
+          boolean hasErrorHandler) {
+        this.dlqTag = dlqTag;
+        this.successTag = successTag;
+        this.hasErrorHandler = hasErrorHandler;
+      }
+
+      @ProcessElement
+      public void processElement(@Element Row row, MultiOutputReceiver out) throws Exception {
+        boolean isLargeRow = false;
+        if (row.getFamiliesCount() == 1 && row.getFamilies(0).getName().equals("__BEAM_DLQ_LARGE_ROW__")) {
+          isLargeRow = true;
+        }
+        
+        if (row.getFamiliesCount() == 0 || isLargeRow) { 
+          org.apache.beam.sdk.metrics.Metrics.counter(BigtableIO.class, "large_rows").inc();
+          if (hasErrorHandler) {
+            out.get(dlqTag)
+                .output(
+                    org.apache.beam.sdk.transforms.errorhandling.BadRecord.fromExceptionInformation(
+                        row.getKey().toStringUtf8(),
+                        org.apache.beam.sdk.coders.StringUtf8Coder.of(),
+                        new RuntimeException("LargeRowException"),
+                        "Row exceeded limit: " + row.getKey().toStringUtf8()));
+          } else {
+            throw new RuntimeException(
+                "Large row encountered and no DLQ configured: " + row.getKey().toStringUtf8());
+          }
+        } else {
+          org.apache.beam.sdk.metrics.Metrics.counter(BigtableIO.class, "healthy_rows").inc();
+          out.get(successTag).output(row);
         }
       }
     }

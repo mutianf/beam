@@ -19,6 +19,12 @@
 import groovy.json.JsonOutput
 
 plugins { id 'org.apache.beam.module' }
+
+repositories {
+  mavenLocal()
+  mavenCentral()
+}
+
 applyJavaNature(
   automaticModuleName: 'org.apache.beam.sdk.io.gcp',
   enableSpotbugs: false,
@@ -146,6 +152,7 @@ dependencies {
   testImplementation project(path: ":sdks:java:extensions:google-cloud-platform-core", configuration: "testRuntimeMigration")
   testImplementation project(path: ":sdks:java:extensions:protobuf", configuration: "testRuntimeMigration")
   testImplementation project(path: ":runners:direct-java", configuration: "shadow")
+  testImplementation project(":runners:google-cloud-dataflow-java")
   testImplementation project(":sdks:java:managed")
   testImplementation project(path: ":sdks:java:io:common")
   testImplementation project(path: ":sdks:java:testing:test-utils")
@@ -164,9 +171,10 @@ dependencies {
 
 // Don't pull in newer versions of the checker framework from dependencies.
 // TODO(BEAM-11125) Remove this when Beam upgrades to newest checker framework version.
-configurations.implementation {
+configurations.all {
   resolutionStrategy {
     force library.java.checker_qual
+    force "com.google.cloud:google-cloud-bigtable:2.77.2-SNAPSHOT"
   }
 }
 
