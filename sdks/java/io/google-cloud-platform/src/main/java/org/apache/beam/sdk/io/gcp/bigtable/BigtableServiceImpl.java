@@ -131,7 +131,7 @@ class BigtableServiceImpl implements BigtableService {
   }
 
   @VisibleForTesting
-  static class BigtableReaderImpl implements Reader {
+  static class BigtableDLQReaderImpl implements Reader {
     private final BigtableDataClient client;
 
     private final String projectId;
@@ -150,24 +150,21 @@ class BigtableServiceImpl implements BigtableService {
     private com.google.bigtable.v2.Row bufferedRow = null;
 
     private boolean exhausted;
-    private final boolean skipLargeRows;
 
     @VisibleForTesting
-    BigtableReaderImpl(
+    BigtableDLQReaderImpl(
         BigtableDataClient client,
         String projectId,
         String instanceId,
         String tableId,
         List<ByteKeyRange> ranges,
-        @Nullable RowFilter rowFilter,
-        boolean skipLargeRows) {
+        @Nullable RowFilter rowFilter) {
       this.client = client;
       this.projectId = projectId;
       this.instanceId = instanceId;
       this.tableId = tableId;
       this.ranges = ranges;
       this.rowFilter = rowFilter;
-      this.skipLargeRows = skipLargeRows;
     }
 
     @Override
@@ -186,23 +183,16 @@ class BigtableServiceImpl implements BigtableService {
       }
 
       try {
-        if (skipLargeRows) {
-          stream =
-              client
-                  .skipLargeRowsCallable(
-                      new BigtableRowProtoAdapter() {
-                        @Override
-                        public void onLargeRowSkipped(com.google.protobuf.ByteString key) {
-                          skippedLargeKeys.add(key);
-                        }
-                      })
-                  .call(query, GrpcCallContext.createDefault());
-        } else {
-          stream =
-              client
-                  .readRowsCallable(new BigtableRowProtoAdapter())
-                  .call(query, GrpcCallContext.createDefault());
-        }
+        stream =
+            client
+                .skipLargeRowsCallable(
+                    new BigtableRowProtoAdapter() {
+                      @Override
+                      public void onLargeRowSkipped(com.google.protobuf.ByteString key) {
+                        skippedLargeKeys.add(key);
+                      }
+                    })
+                .call(query, GrpcCallContext.createDefault());
         results = stream.iterator();
         serviceCallMetric.call("ok");
       } catch (StatusRuntimeException e) {
@@ -218,14 +208,12 @@ class BigtableServiceImpl implements BigtableService {
         return false;
       }
 
-      // 1. Ensure we have a buffered row from the GAX stream if available
       if (bufferedRow == null && results.hasNext()) {
-        bufferedRow = results.next();
+         bufferedRow = results.next();
       }
 
       com.google.protobuf.ByteString largeKey = skippedLargeKeys.peek();
 
-      // Helper to build a completely unambiguous DLQ marker row
       java.util.function.Supplier<com.google.bigtable.v2.Row> buildMarkerRow = () -> 
           com.google.bigtable.v2.Row.newBuilder()
               .setKey(largeKey)
@@ -235,7 +223,6 @@ class BigtableServiceImpl implements BigtableService {
               )
               .build();
 
-      // 2. If both a healthy row and a large key are buffered, yield them in chronological order!
       if (bufferedRow != null && largeKey != null) {
         org.apache.beam.sdk.io.range.ByteKey bLarge =
             org.apache.beam.sdk.io.range.ByteKey.copyFrom(largeKey.toByteArray());
@@ -247,21 +234,18 @@ class BigtableServiceImpl implements BigtableService {
           currentRow = buildMarkerRow.get();
           return true;
         } else {
-          // The healthy row happened chronologically BEFORE the large row. Yield it first.
           currentRow = bufferedRow;
           bufferedRow = null;
           return true;
         }
       }
 
-      // 3. If only a large key is left
       if (largeKey != null) {
         skippedLargeKeys.poll();
         currentRow = buildMarkerRow.get();
         return true;
       }
 
-      // 4. If only a healthy row is left
       if (bufferedRow != null) {
         currentRow = bufferedRow;
         bufferedRow = null;
@@ -282,15 +266,104 @@ class BigtableServiceImpl implements BigtableService {
 
     @Override
     public void close() {
-      if (!exhausted) {
+      if (stream != null) {
         stream.cancel();
-        exhausted = true;
+        stream = null;
       }
+    }
+  }
+
+  @VisibleForTesting
+  static class BigtableReaderImpl implements Reader {
+    private final BigtableDataClient client;
+
+    private final String projectId;
+    private final String instanceId;
+    private final String tableId;
+
+    private final List<ByteKeyRange> ranges;
+    private final RowFilter rowFilter;
+    private Iterator<Row> results;
+
+    private Row currentRow;
+
+    private ServerStream<Row> stream;
+
+    private boolean exhausted;
+
+    @VisibleForTesting
+    BigtableReaderImpl(
+        BigtableDataClient client,
+        String projectId,
+        String instanceId,
+        String tableId,
+        List<ByteKeyRange> ranges,
+        @Nullable RowFilter rowFilter) {
+      this.client = client;
+      this.projectId = projectId;
+      this.instanceId = instanceId;
+      this.tableId = tableId;
+      this.ranges = ranges;
+      this.rowFilter = rowFilter;
     }
 
     @Override
-    public void reportLineage() {
-      Lineage.getSources().add("bigtable", ImmutableList.of(projectId, instanceId, tableId));
+    public boolean start() throws IOException {
+      ServiceCallMetric serviceCallMetric = createCallMetric(projectId, instanceId, tableId);
+
+      Query query = Query.create(tableId);
+      for (ByteKeyRange sourceRange : ranges) {
+        query.range(
+            ByteString.copyFrom(sourceRange.getStartKey().getValue()),
+            ByteString.copyFrom(sourceRange.getEndKey().getValue()));
+      }
+
+      if (rowFilter != null) {
+        query.filter(Filters.FILTERS.fromProto(rowFilter));
+      }
+
+      try {
+        stream =
+            client
+                .readRowsCallable(new BigtableRowProtoAdapter())
+                .call(query, GrpcCallContext.createDefault());
+        results = stream.iterator();
+        serviceCallMetric.call("ok");
+      } catch (StatusRuntimeException e) {
+        serviceCallMetric.call(e.getStatus().getCode().toString());
+        throw e;
+      }
+      return advance();
+    }
+
+    @Override
+    public boolean advance() throws IOException {
+      if (exhausted) {
+        return false;
+      }
+
+      if (results.hasNext()) {
+        currentRow = results.next();
+        return true;
+      }
+      exhausted = true;
+      return false;
+    }
+
+    @Override
+    public Row getCurrentRow() throws NoSuchElementException {
+      if (currentRow == null) {
+        throw new NoSuchElementException();
+      }
+      return currentRow;
+    }
+
+    @Override
+    public void close() {
+      if (stream != null) {
+        stream.cancel();
+        stream = null;
+      }
     }
   }
 
@@ -735,6 +808,14 @@ class BigtableServiceImpl implements BigtableService {
           source.getRanges(),
           source.getRowFilter(),
           source.getMaxBufferElementCount());
+    } else if (skipLargeRows) {
+      return new BigtableDLQReaderImpl(
+          client,
+          projectId,
+          instanceId,
+          source.getTableId().get(),
+          source.getRanges(),
+          source.getRowFilter());
     } else {
       return new BigtableReaderImpl(
           client,
