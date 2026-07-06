@@ -42,7 +42,7 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
 	github.com/johannesboyne/gofakes3 v0.0.0-20221110173912-32fb85c5aed6
-	github.com/lib/pq v1.10.9
+	github.com/lib/pq v1.12.3
 	github.com/linkedin/goavro/v2 v2.13.0
 	github.com/nats-io/nats-server/v2 v2.10.18
 	github.com/nats-io/nats.go v1.37.0
