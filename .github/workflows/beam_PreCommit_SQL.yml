@@ -91,7 +91,7 @@ jobs:
             -PdisableCheckStyle=true \
             -PenableJacocoReport \
       - name: Archive JUnit Test Results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: ${{ !success() }}
         with:
           name: JUnit Test Results
@@ -104,7 +104,7 @@ jobs:
           comment_mode: ${{ github.event_name == 'issue_comment'  && 'always' || 'off' }}
           files: '**/build/test-results/**/*.xml'
       - name: Archive SpotBugs Results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: SpotBugs Results
@@ -120,7 +120,7 @@ jobs:
         run: |
           echo "path=sdks/java/extensions/sql/build/reports/jacoco/test/jacocoTestReport.xml" >> $GITHUB_OUTPUT
       - name: Archive Jacoco Results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Jacoco Results
           path: '**/build/jacoco/report/**'
